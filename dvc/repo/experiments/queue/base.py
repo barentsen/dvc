@@ -1,6 +1,7 @@
 import logging
 import os
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from dataclasses import asdict, dataclass
 from typing import (
     TYPE_CHECKING,
@@ -19,22 +20,29 @@ from typing import (
 
 from funcy import cached_property
 
-from dvc.dependency.param import MissingParamsError
+from dvc.dependency.param import ParamsDependency
 from dvc.env import DVCLIVE_RESUME
-from dvc.exceptions import DvcException
-from dvc.ui import ui
-
-from ..exceptions import CheckpointExistsError, ExperimentExistsError
-from ..executor.base import (
+from dvc.exceptions import DvcException, InvalidArgumentError
+from dvc.repo.experiments.exceptions import (
+    CheckpointExistsError,
+    ExperimentExistsError,
+)
+from dvc.repo.experiments.executor.base import (
     EXEC_PID_DIR,
     EXEC_TMP_DIR,
     BaseExecutor,
     ExecutorResult,
 )
-from ..executor.local import WorkspaceExecutor
-from ..refs import EXEC_BASELINE, EXEC_HEAD, EXEC_MERGE, ExpRefInfo
-from ..stash import ExpStash, ExpStashEntry
-from ..utils import exp_refs_by_rev, scm_locked
+from dvc.repo.experiments.executor.local import WorkspaceExecutor
+from dvc.repo.experiments.refs import (
+    EXEC_BASELINE,
+    EXEC_HEAD,
+    EXEC_MERGE,
+    ExpRefInfo,
+)
+from dvc.repo.experiments.stash import ExpStash, ExpStashEntry
+from dvc.repo.experiments.utils import exp_refs_by_rev, scm_locked
+from dvc.ui import ui
 
 if TYPE_CHECKING:
     from scmrepo.git import Git
@@ -283,7 +291,7 @@ class BaseStashQueue(ABC):
     def _stash_exp(
         self,
         *args,
-        params: Optional[dict] = None,
+        params: Optional[Iterable[str]] = None,
         resume_rev: Optional[str] = None,
         baseline_rev: Optional[str] = None,
         branch: Optional[str] = None,
@@ -292,8 +300,8 @@ class BaseStashQueue(ABC):
     ) -> QueueEntry:
         """Stash changes from the workspace as an experiment.
 
-        Arguments:
-            params: Optional dictionary of parameter values to be used.
+        Args:
+            params: List of `Hydra Override`_ patterns from `--set-param`.
                 Values take priority over any parameters specified in the
                 user's workspace.
             resume_rev: Optional checkpoint resume rev.
@@ -305,6 +313,9 @@ class BaseStashQueue(ABC):
             name: Optional experiment name. If specified this will be used as
                 the human-readable name in the experiment branch ref. Has no
                 effect of branch is specified.
+
+        .. _Hydra Override:
+            https://hydra.cc/docs/next/advanced/override_grammar/basic/
         """
         with self.scm.detach_head(client="dvc") as orig_head:
             stash_head = orig_head
@@ -508,28 +519,81 @@ class BaseStashQueue(ABC):
             f"from '{config_path}': {param_list}"
         )
 
-    def _update_params(self, params: dict):
-        """Update experiment params files with the specified values."""
-        from dvc.utils.collections import NewParamsFound, merge_params
+    def _update_params(self, path_params: Iterable[str]):
+        """Update param files with the provided `Hydra Override`_ patterns.
+
+        Args:
+            path_params: List of `Hydra Override`_ patterns, provided via
+                `exp run --set-param`.
+
+        .. _Hydra Override:
+            https://hydra.cc/docs/next/advanced/override_grammar/basic/
+        """
+        from hydra._internal.config_loader_impl import ConfigLoaderImpl
+        from hydra.core.override_parser.overrides_parser import OverridesParser
+        from hydra.errors import (
+            ConfigCompositionException,
+            OverrideParseException,
+        )
+        from hydra.types import RunMode
+        from omegaconf import OmegaConf
+
+        from dvc.utils.collections import (
+            merge_dicts,
+            remove_missing_keys,
+            to_omegaconf,
+        )
         from dvc.utils.serialize import MODIFIERS
 
-        logger.debug("Using experiment params '%s'", params)
+        hydra_errors = (ConfigCompositionException, OverrideParseException)
 
-        for path in params:
+        path_overrides = defaultdict(list)
+        for path_param in path_params:
+
+            path_and_name = path_param.partition("=")[0]
+            if ":" not in path_and_name:
+                override = path_param
+                path = ParamsDependency.DEFAULT_PARAMS_FILE
+            else:
+                path, _, override = path_param.partition(":")
+
+            path_overrides[path].append(override)
+
+        for path, overrides in path_overrides.items():
             suffix = self.repo.fs.path.suffix(path).lower()
+
             modify_data = MODIFIERS[suffix]
-            with modify_data(path, fs=self.repo.fs) as data:
+            with modify_data(path, fs=self.repo.fs) as original_data:
                 try:
-                    merge_params(data, params[path], allow_new=False)
-                except NewParamsFound as e:
-                    msg = self._format_new_params_msg(e.new_params, path)
-                    raise MissingParamsError(msg)
+                    parser = OverridesParser.create()
+                    parsed = parser.parse_overrides(overrides=overrides)
+                    ConfigLoaderImpl.validate_sweep_overrides_legal(
+                        parsed, run_mode=RunMode.RUN, from_shell=True
+                    )
+
+                    new_data = OmegaConf.create(
+                        to_omegaconf(original_data),
+                        flags={"allow_objects": True},
+                    )
+                    OmegaConf.set_struct(new_data, True)
+                    # pylint: disable=protected-access
+                    ConfigLoaderImpl._apply_overrides_to_config(
+                        parsed, new_data
+                    )
+                    new_data = OmegaConf.to_object(new_data)
+                except hydra_errors as e:
+                    raise InvalidArgumentError(
+                        "Invalid `--set-param` value"
+                    ) from e
+
+                merge_dicts(original_data, new_data)
+                remove_missing_keys(original_data, new_data)
 
         # Force params file changes to be staged in git
         # Otherwise in certain situations the changes to params file may be
         # ignored when we `git stash` them since mtime is used to determine
         # whether the file is dirty
-        self.scm.add(list(params.keys()))
+        self.scm.add(list(path_overrides.keys()))
 
     @staticmethod
     @scm_locked
