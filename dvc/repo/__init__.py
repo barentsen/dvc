@@ -58,6 +58,7 @@ class Repo:
     from dvc.repo.commit import commit  # type: ignore[misc]
     from dvc.repo.destroy import destroy  # type: ignore[misc]
     from dvc.repo.diff import diff  # type: ignore[misc]
+    from dvc.repo.du import du as _du  # type: ignore[misc]
     from dvc.repo.fetch import fetch  # type: ignore[misc]
     from dvc.repo.freeze import freeze, unfreeze  # type: ignore[misc]
     from dvc.repo.gc import gc  # type: ignore[misc]
@@ -78,6 +79,7 @@ class Repo:
 
     from .data import status as data_status  # type: ignore[misc]
 
+    du = staticmethod(_du)
     ls = staticmethod(_ls)
     get = staticmethod(_get)
     get_url = staticmethod(_get_url)
