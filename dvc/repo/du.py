@@ -22,13 +22,14 @@ def du(
     block_size: int = 1024,
 ) -> List[Tuple[str, int]]:
     """
-    Returns the disk usage.
+    Returns the disk usage in blocks (not bytes) as a list of tuples.
 
     Args:
-        TBC
+        TBD
 
     Returns:
-        usage: list of dict
+        disk_usage: list of (path, usage) tuples.
+            The usage is expressed in blocks (not bytes).
     """
     from . import Repo
 
@@ -57,6 +58,16 @@ def _du(
     dvc_only: bool = False,
     block_size: int = 1024,
 ) -> Dict[str, int]:
+    """
+    Returns the disk usage as a dictionary.
+
+    Args:
+        TBD
+
+    Returns:
+        disk_usage: dictionary which maps file paths onto disk usage
+            (using units of blocks rather than bytes)
+    """
     fs: "DvcFileSystem" = repo.dvcfs
     fs_path: str = fs.from_os_path(path)
     usage: Dict[str, int] = {}  # path => disk usage (bytes)

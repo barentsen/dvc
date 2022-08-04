@@ -1,5 +1,7 @@
 """
 Unit tests for the `dvc du` cli command.
+
+TODO: Increase test coverage!
 """
 from dvc.cli import parse_args
 from dvc.commands.du import CmdDU
