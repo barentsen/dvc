@@ -3,6 +3,7 @@ Implements the `dvc du` command
 """
 import argparse
 import logging
+import math
 from typing import List, Tuple
 
 from dvc.cli import completion
@@ -13,14 +14,35 @@ from dvc.ui import ui
 
 logger = logging.getLogger(__name__)
 
+SIZE_SUFFIXES = ("", "K", "M", "G", "T", "P", "E", "Z", "Y")
+
+
+def _human_readable(n_bytes: int, block_size: int = 1024) -> str:
+    """
+    Returns a human-readable string representing a number of bytes.
+    """
+    if n_bytes == 0:  # avoid log(0) below
+        return "0"
+    suffix_idx = int(math.floor(math.log(n_bytes, block_size)))
+    # divide by the number of bytes that corresponds to the suffix
+    value = n_bytes / math.pow(block_size, suffix_idx)
+    if value < 10:
+        value_fmt = f"{value:.1f}"
+    else:
+        value_fmt = f"{value:.0f}"
+    return value_fmt + SIZE_SUFFIXES[suffix_idx]
+
 
 def _format_du_output(
     disk_usage: List[Tuple[str, int]], human_readable: int = False
 ) -> List[str]:
+    """
+    Converts `Repo.du` output into strings suitable for terminal output.
+    """
+
     def fmt(path, size):
-        if human_readable:
-            pass  # TODO: implement human readable mode
-        return f"{size:<10} {path}"
+        size = _human_readable(size) if human_readable else size
+        return f"{size:<7} {path}"
 
     return [fmt(path, size) for path, size in disk_usage]
 
@@ -31,6 +53,9 @@ class CmdDU(CmdBaseNoRepo):
 
         try:
             max_depth = 0 if self.args.summarize else self.args.max_depth
+            block_size = (
+                1 if self.args.human_readable else self.args.block_size
+            )
 
             disk_usage = Repo.du(
                 self.args.url,
@@ -39,7 +64,7 @@ class CmdDU(CmdBaseNoRepo):
                 max_depth=max_depth,
                 include_files=self.args.all,
                 dvc_only=self.args.dvc_only,
-                block_size=self.args.block_size,
+                block_size=block_size,
             )
 
             if disk_usage:
@@ -88,6 +113,7 @@ def add_parser(subparsers, parent_parser):
         "-s", "--summarize", action="store_true", help="Display only a total."
     )
     list_parser.add_argument(
+        "-H",
         "--human-readable",
         action="store_true",
         help="Show sizes in human readable format (e.g., 1K 234M 2G).",
