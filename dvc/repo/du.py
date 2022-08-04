@@ -1,11 +1,5 @@
 """
 Implements the `Repo.du()` method.
-
-TODO
-----
-- Implement the `dvc_only` option
-- Make `du` resilient to the size being unknown (`None`)
-- Implement correct reporting of block sizes.
 """
 import math
 from os.path import join
@@ -116,4 +110,7 @@ def _disk_usage(fs: "DvcFileSystem", path: str, block_size: int = 1024) -> int:
         blocks: Number of blocks used by the file on the file system.
     """
     size = fs.size(path)  # bytes
+    size = (
+        size if size else 0
+    )  # TODO: Consider how to deal with missing size info
     return math.ceil(size / block_size)  # blocks
