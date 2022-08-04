@@ -12,6 +12,42 @@ if TYPE_CHECKING:
     from . import Repo
 
 
+# The GNU coreutils version of `du` appears to default to a block size
+# of 1024 bytes, regardless of the actual block size configured for the
+# file system.  We adopt the same convention here for consistency.
+# Note: GNU `du` enables the block size to be configured using environment
+# variables, which we don't support here yet. Reference:
+# https://www.gnu.org/software/coreutils/manual/html_node/Block-size.html
+# Note: local block size can be obtained using `os.stat(".").st_blksize`.
+DEFAULT_BLOCK_SIZE = 1024
+
+
+def _disk_usage(
+    fs: "DvcFileSystem", path: str, block_size: Optional[int] = None
+) -> int:
+    """
+    Returns the number of blocks used by an object at location `path`.
+
+    This is a helper function used by the `_du` function below.
+
+    Note:
+        This function does not currently include the space occupied by inodes.
+
+    Args:
+        fs: repository file system.
+        path: location and name of the target (e.g., "data/data.xml").
+        block_size: bytes per file system block.
+
+    Returns:
+        blocks: Number of blocks used by `path` on the file system.
+    """
+    block_size = block_size or DEFAULT_BLOCK_SIZE
+    size = fs.size(path)  # bytes
+    # TODO: is defaulting to zero size OK when size info is missing?
+    size = size if size else 0
+    return math.ceil(size / block_size)  # blocks
+
+
 def du(
     url: str,
     path: Optional[str] = None,
@@ -19,23 +55,31 @@ def du(
     max_depth: Optional[int] = None,
     include_files: bool = False,
     dvc_only: bool = False,
-    block_size: int = 1024,
+    block_size: Optional[int] = None,
 ) -> List[Tuple[str, int]]:
     """
-    Returns the disk usage in blocks (not bytes) as a list of tuples.
+    Returns disk usage in unit blocks (not bytes).
+
+    This function returns a list of (path, disk_usage) tuples,
+    sorted by `path`.
 
     Args:
-        TBD
+        url: Location of DVC repository.
+        path: Path to a location within the repository to list (e.g., "data").
+        rev: Git revision (e.g. SHA, branch, tag).
+        max_depth: Show only objects `max_depth` or fewer levels below `path`.
+        include_files: Show all files, not just directories.
+        dvc_only: Show only DVC outputs.
+        block_size: Size of file system blocks in bytes.
 
     Returns:
-        disk_usage: list of (path, usage) tuples.
+        disk_usage: list of (path, disk_usage) tuples.
             The usage is expressed in blocks (not bytes).
     """
     from . import Repo
 
     with Repo.open(url, rev=rev, subrepos=True, uninitialized=True) as repo:
         path = path or "."
-        block_size = block_size or 1024
         usage = _du(
             repo,
             path,
@@ -46,7 +90,8 @@ def du(
         )
         usage_list = sorted(usage.items(), key=lambda x: x[0])
         # Put "." at the end (TODO: define a smarter sorting function)
-        usage_list = usage_list[1:] + [usage_list[0]]
+        if len(usage_list) > 1:
+            usage_list = usage_list[1:] + [usage_list[0]]
         return usage_list
 
 
@@ -56,17 +101,10 @@ def _du(
     max_depth: Optional[int] = None,
     include_files: bool = False,
     dvc_only: bool = False,
-    block_size: int = 1024,
+    block_size: Optional[int] = None,
 ) -> Dict[str, int]:
     """
-    Returns the disk usage as a dictionary.
-
-    Args:
-        TBD
-
-    Returns:
-        disk_usage: dictionary which maps file paths onto disk usage
-            (using units of blocks rather than bytes)
+    Returns the disk usage as a dictionary mapping `path` onto `blocks`.
     """
     fs: "DvcFileSystem" = repo.dvcfs
     fs_path: str = fs.from_os_path(path)
@@ -102,26 +140,3 @@ def _du(
         }
 
     return usage
-
-
-def _disk_usage(fs: "DvcFileSystem", path: str, block_size: int = 1024) -> int:
-    """
-    Returns the number of blocks used by the file at location `path`.
-
-    Note:
-        This function does not currently include the space occupied by inodes.
-
-    Args:
-        fs (DvcFileSystem): repository file system.
-        path (str): location and file name of the target.
-        repo (str): location of the DVC project or Git Repo.
-        block_size (int, optional): bytes per file system block.
-
-    Returns:
-        blocks: Number of blocks used by the file on the file system.
-    """
-    size = fs.size(path)  # bytes
-    size = (
-        size if size else 0
-    )  # TODO: Consider how to deal with missing size info
-    return math.ceil(size / block_size)  # blocks
