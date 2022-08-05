@@ -16,9 +16,8 @@ if TYPE_CHECKING:
 # of 1024 bytes, regardless of the actual block size configured for the
 # file system.  We adopt the same convention here for consistency.
 # Note: GNU `du` enables the block size to be configured using environment
-# variables, which we don't support here yet. Reference:
+# variables, which we don't support here yet. Reference docs:
 # https://www.gnu.org/software/coreutils/manual/html_node/Block-size.html
-# Note: local block size can be obtained using `os.stat(".").st_blksize`.
 DEFAULT_BLOCK_SIZE = 1024
 
 
@@ -31,7 +30,12 @@ def _disk_usage(
     This is a helper function used by the `_du` function below.
 
     Note:
-        This function does not currently include the space occupied by inodes.
+        The usage reported by this function may differ from the true device
+        usage. For example, we do not account for file system data structures
+        (e.g., the space needed to store indirect blocks which store the
+        locations of data blocks).  The numbers reported by this function
+        match those obtained by calling the standard GNU `du` command with
+        the `--apparent-size` argument.
 
     Args:
         fs: repository file system.
