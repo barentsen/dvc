@@ -20,17 +20,28 @@ SIZE_SUFFIXES = ("", "K", "M", "G", "T", "P", "E", "Z", "Y")
 def _human_readable(n_bytes: int, block_size: int = 1024) -> str:
     """
     Returns a human-readable string representing a number of bytes.
+
+    Intends to replicate the format returned by GNU's ``du -h``.
+
+    Examples:
+        >>> _human_readable(0)
+        '0'
+        >>> _human_readable(1024)
+        '1.0K'
+        >>> _human_readable(20*1024**3)
+        '20G'
     """
     if n_bytes == 0:  # avoid log(0) below
         return "0"
     suffix_idx = int(math.floor(math.log(n_bytes, block_size)))
-    # divide by the number of bytes that corresponds to the suffix
+    # TODO: Line below assumes we will never see >=1000 Yottabyte; is that OK?
+    suffix = SIZE_SUFFIXES[suffix_idx]
     value = n_bytes / math.pow(block_size, suffix_idx)
     if value < 10:
         value_fmt = f"{value:.1f}"
     else:
         value_fmt = f"{value:.0f}"
-    return value_fmt + SIZE_SUFFIXES[suffix_idx]
+    return value_fmt + suffix
 
 
 def _format_du_output(
