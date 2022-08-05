@@ -52,13 +52,14 @@ class CmdDU(CmdBaseNoRepo):
         from dvc.repo import Repo
 
         try:
+            url = self.args.url if self.args.url else "."
             max_depth = 0 if self.args.summarize else self.args.max_depth
             block_size = (
                 1 if self.args.human_readable else self.args.block_size
             )
 
             disk_usage = Repo.du(
-                self.args.url,
+                url,
                 path=self.args.path,
                 rev=self.args.rev,
                 max_depth=max_depth,
@@ -80,8 +81,12 @@ class CmdDU(CmdBaseNoRepo):
 
 def add_parser(subparsers, parent_parser):
     DU_HELP = (
-        "List disk usage of repository contents, including files"
-        " and directories tracked by DVC and by Git."
+        "Show expected disk usage of repository contents, including files"
+        " and directories tracked by DVC and by Git.  Note that this tool"
+        " reports the apparent sizes of files, i.e., those you would obtain"
+        " by calling the standard unix `du` command with the `--apparent-size`"
+        " option.  This means that local file system effects such as indirect "
+        " or unallocated blocks are not taken into account."
     )
     list_parser = subparsers.add_parser(
         "du",
@@ -90,7 +95,16 @@ def add_parser(subparsers, parent_parser):
         help=DU_HELP,
         formatter_class=argparse.RawTextHelpFormatter,
     )
-    list_parser.add_argument("url", help="Location of DVC repository    ")
+    list_parser.add_argument(
+        "url",
+        help="Location of DVC repository.",
+        nargs="?",
+    )
+    list_parser.add_argument(
+        "path",
+        nargs="?",
+        help="Path to directory within the repository to list sizes for",
+    ).complete = completion.DIR
     list_parser.add_argument(
         "-a",
         "--all",
@@ -101,8 +115,8 @@ def add_parser(subparsers, parent_parser):
         "-d",
         "--max-depth",
         nargs="?",
-        help="Show only objects N or fewer levels below the command line "
-        "argument; --max-depth=0 is the same as --summarize.",
+        help="Show only objects N or fewer levels below the path;"
+        " --max-depth=0 is the same as --summarize.",
         metavar="N",
         type=int,
     )
@@ -132,9 +146,4 @@ def add_parser(subparsers, parent_parser):
         help="Git revision (e.g. SHA, branch, tag)",
         metavar="<commit>",
     )
-    list_parser.add_argument(
-        "path",
-        nargs="?",
-        help="Path to directory within the repository to list sizes for",
-    ).complete = completion.DIR
     list_parser.set_defaults(func=CmdDU)
