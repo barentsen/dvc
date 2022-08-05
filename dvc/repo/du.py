@@ -93,7 +93,8 @@ def du(
             block_size=block_size,
         )
         usage_list = sorted(usage.items(), key=lambda x: x[0])
-        # Put "." at the end (TODO: define a smarter sorting function)
+        # The logic below ensures that the summary (path==".") appears last.
+        # TODO: define a smarter sorting function to achieve this.
         if len(usage_list) > 1:
             usage_list = usage_list[1:] + [usage_list[0]]
         return usage_list

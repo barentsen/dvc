@@ -95,9 +95,7 @@ def add_parser(subparsers, parent_parser):
         "Show expected disk usage of repository contents, including files"
         " and directories tracked by DVC and by Git.  Note that this tool"
         " reports the apparent sizes of files, i.e., those you would obtain"
-        " by calling the standard unix `du` command with the `--apparent-size`"
-        " option.  This means that local file system effects such as indirect "
-        " or unallocated blocks are not taken into account."
+        " by calling the GNU `du` command with the `--apparent-size` option."
     )
     list_parser = subparsers.add_parser(
         "du",
@@ -108,7 +106,7 @@ def add_parser(subparsers, parent_parser):
     )
     list_parser.add_argument(
         "url",
-        help="Location of DVC repository.",
+        help="Location of the DVC repository.",
         nargs="?",
     )
     list_parser.add_argument(
@@ -123,16 +121,21 @@ def add_parser(subparsers, parent_parser):
         help="Show all files, not just directories.",
     )
     list_parser.add_argument(
+        "--dvc-only", action="store_true", help="Show only DVC outputs."
+    )
+    list_parser.add_argument(
+        "--rev",
+        nargs="?",
+        help="Git revision (e.g. SHA, branch, tag).",
+        metavar="<commit>",
+    )
+    list_parser.add_argument(
         "-d",
         "--max-depth",
         nargs="?",
-        help="Show only objects N or fewer levels below the path;"
-        " --max-depth=0 is the same as --summarize.",
+        help="Show only objects N or fewer levels below the path.",
         metavar="N",
         type=int,
-    )
-    list_parser.add_argument(
-        "--dvc-only", action="store_true", help="Show only DVC outputs."
     )
     list_parser.add_argument(
         "-s", "--summarize", action="store_true", help="Display only a total."
@@ -141,20 +144,15 @@ def add_parser(subparsers, parent_parser):
         "-H",
         "--human-readable",
         action="store_true",
-        help="Show sizes in human readable format (e.g., 1K 234M 2G).",
+        help="Show sizes in human readable format (e.g., 234M).",
     )
     list_parser.add_argument(
         "-B",
         "--block-size",
         nargs="?",
-        help="Scale sizes by SIZE before printing them.",
+        help="Scale sizes by SIZE bytes before printing them."
+        " Defaults to 1024 bytes.",
         metavar="SIZE",
         type=int,
-    )
-    list_parser.add_argument(
-        "--rev",
-        nargs="?",
-        help="Git revision (e.g. SHA, branch, tag)",
-        metavar="<commit>",
     )
     list_parser.set_defaults(func=CmdDU)
