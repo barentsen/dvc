@@ -25,22 +25,24 @@ def _disk_usage(
     fs: "DvcFileSystem", path: str, block_size: Optional[int] = None
 ) -> int:
     """
-    Returns the number of blocks used by an object at location `path`.
+    Returns the expected number of blocks used by an object at location `path`.
 
     This is a helper function used by the `_du` function below.
 
     Note:
         The usage reported by this function may differ from the true device
-        usage. For example, we do not account for file system data structures
-        (e.g., the space needed to store indirect blocks which store the
-        locations of data blocks).  The numbers reported by this function
-        match those obtained by calling the standard GNU `du` command with
-        the `--apparent-size` argument.
+        usage. For example, we do not account for internal fragmentation
+        (e.g., unused gaps in blocks allocated to a file), sparse files,
+        or the space used for file system data structures (e.g., the space
+        needed to store indirect blocks which store the locations of data
+        blocks). The numbers reported by this function match those obtained
+        by calling the standard GNU `du` command with the `--apparent-size`
+        argument.
 
     Args:
         fs: repository file system.
         path: location and name of the target (e.g., "data/data.xml").
-        block_size: bytes per file system block.
+        block_size: bytes per file system block.  Defaults to 1024 bytes.
 
     Returns:
         blocks: Number of blocks used by `path` on the file system.
