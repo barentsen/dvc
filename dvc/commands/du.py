@@ -4,7 +4,6 @@ Implements the `dvc du` command
 import argparse
 import logging
 import math
-from typing import List, Tuple
 
 from dvc.cli import completion
 from dvc.cli.command import CmdBaseNoRepo
@@ -45,17 +44,13 @@ def _human_readable(n_bytes: int, block_size: int = 1024) -> str:
 
 
 def _format_du_output(
-    disk_usage: List[Tuple[str, int]], human_readable: int = False
-) -> List[str]:
+    path: str, usage: int, human_readable: int = False
+) -> str:
     """
     Converts `Repo.du` output into strings suitable for terminal output.
     """
-
-    def fmt(path, size):
-        size = _human_readable(size) if human_readable else size
-        return f"{size:<7} {path}"
-
-    return [fmt(path, size) for path, size in disk_usage]
+    usage_out = _human_readable(usage) if human_readable else usage
+    return f"{usage_out:<7} {path}"
 
 
 class CmdDU(CmdBaseNoRepo):
@@ -79,11 +74,12 @@ class CmdDU(CmdBaseNoRepo):
                 block_size=block_size,
             )
 
-            if disk_usage:
-                disk_usage_fmt = _format_du_output(
-                    disk_usage, human_readable=self.args.human_readable
+            for path, usage in disk_usage:
+                out = _format_du_output(
+                    path, usage, human_readable=self.args.human_readable
                 )
-                ui.write("\n".join(disk_usage_fmt))
+                ui.write(out)
+
             return 0
         except DvcException:
             logger.exception("failed to du '%s'", self.args.url)
