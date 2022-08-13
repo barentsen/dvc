@@ -33,8 +33,10 @@ def _human_readable(n_bytes: int, block_size: int = 1024) -> str:
     if n_bytes == 0:  # avoid log(0) below
         return "0"
     suffix_idx = int(math.floor(math.log(n_bytes, block_size)))
-    # TODO: Line below assumes we will never see >=1000 Yottabyte; is that OK?
-    suffix = SIZE_SUFFIXES[suffix_idx]
+    try:
+        suffix = SIZE_SUFFIXES[suffix_idx]
+    except IndexError:
+        suffix = "?"  # Suffixes are undefined beyond 'yotta'
     value = n_bytes / math.pow(block_size, suffix_idx)
     if value < 10:
         value_fmt = f"{value:.1f}"
