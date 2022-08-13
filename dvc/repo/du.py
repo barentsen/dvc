@@ -46,28 +46,29 @@ def du(
     from . import Repo
 
     path = path or "."
-    usage_map: Dict[str, int] = {}  # tabulate path => usage
 
     with Repo.open(url, rev=rev, subrepos=True, uninitialized=True) as repo:
         fs: "DvcFileSystem" = repo.dvcfs
         fs_path: str = fs.from_os_path(path)
 
         # Walk through the directories in a bottom-up fashion, so we can
-        # use dynamic programming to compute the directory sizes efficiently
+        # use dynamic programming to compute the directory sizes efficiently.
+        # ``usage_map`` will tabulate path=>usage along the way.
+        usage_map: Dict[str, int] = {}
         walk = list(fs.walk(fs_path, dvcfiles=True, dvc_only=dvc_only))[::-1]
         for root, dirs, files in walk:
             # 1. Sum the sizes of all *files* in the current `root` dir
             total_file_usage = 0
             file_paths = [join(root, name) for name in files]
             for current_file in file_paths:
-                current_usage = _disk_usage(
+                current_file_usage = _disk_usage(
                     fs, current_file, block_size=block_size
                 )
-                total_file_usage += current_usage
+                total_file_usage += current_file_usage
                 if include_files and _max_depth_satisfied(
                     current_file, max_depth
                 ):
-                    yield (current_file, current_usage)
+                    yield (current_file, current_file_usage)
 
             # 2. Sum the sizes of all *subdirs* in the current `root`
             total_subdir_usage = sum(
