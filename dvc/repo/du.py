@@ -10,9 +10,9 @@ if TYPE_CHECKING:
     from dvc.fs.dvc import DvcFileSystem
 
 
-# The GNU coreutils version of `du` appears to default to a block size
-# of 1024 bytes, regardless of the actual block size configured for the
-# file system.  We adopt the same convention here for consistency.
+# The GNU coreutils version of `du` defaults to a block size of 1024 bytes,
+# regardless of the actual block size configured for the file system.
+# We adopt the same convention here for consistency.
 # Note: GNU `du` enables the block size to be configured using environment
 # variables, which we don't support here yet. Reference docs:
 # https://www.gnu.org/software/coreutils/manual/html_node/Block-size.html
