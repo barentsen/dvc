@@ -4,6 +4,7 @@ Implements the `dvc du` command
 import argparse
 import logging
 import math
+from pathlib import Path
 
 from dvc.cli import completion
 from dvc.cli.command import CmdBaseNoRepo
@@ -21,14 +22,21 @@ class CmdDU(CmdBaseNoRepo):
         from dvc.repo import Repo
 
         try:
-            url = self.args.url if self.args.url else "."
-            max_depth = 0 if self.args.summarize else self.args.max_depth
+            # `--summarize` sets max-depth to the depth of the requested path
+            if self.args.summarize:
+                max_depth = (
+                    len(Path(self.args.path).parents) if self.args.path else 0
+                )
+            else:
+                max_depth = self.args.max_depth
+
+            # `--human-readable` overrides the block size to be 1 byte
             block_size = (
                 1 if self.args.human_readable else self.args.block_size
             )
 
             disk_usage = Repo.du(
-                url,
+                self.args.url,
                 path=self.args.path,
                 rev=self.args.rev,
                 max_depth=max_depth,
@@ -37,6 +45,7 @@ class CmdDU(CmdBaseNoRepo):
                 block_size=block_size,
             )
 
+            # Format the output, line by line
             for path, usage in disk_usage:
                 out = _format_du_output(
                     path, usage, human_readable=self.args.human_readable
@@ -64,9 +73,7 @@ def add_parser(subparsers, parent_parser):
         formatter_class=argparse.RawTextHelpFormatter,
     )
     list_parser.add_argument(
-        "url",
-        help="Location of the DVC repository.",
-        nargs="?",
+        "url", help="Location of the DVC repository.", nargs="?", default="."
     )
     list_parser.add_argument(
         "path",
@@ -139,10 +146,11 @@ def _human_readable(n_bytes: int, block_size: int = 1024) -> str:
     except IndexError:
         suffix = "?"  # Suffixes are undefined beyond 'yotta'
     value = n_bytes / math.pow(block_size, suffix_idx)
+    # Note: GNU du appears to round up, so we do the same:
     if value < 10:
-        value_fmt = f"{value:.1f}"
+        value_fmt = f"{math.ceil(value*10)/10:.1f}"
     else:
-        value_fmt = f"{value:.0f}"
+        value_fmt = f"{math.ceil(value):.0f}"
     return value_fmt + suffix
 
 
