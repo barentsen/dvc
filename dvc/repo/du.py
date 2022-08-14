@@ -75,8 +75,12 @@ def du(
                 usage_map.get(join(root, d), 0) for d in dirs
             )
 
-            # 3. Determine total size of the current `root` by summing 1+2
-            usage_map[root] = total_file_usage + total_subdir_usage
+            # 3. Determine total size of `root` by summing 1+2+size(root)
+            usage_map[root] = (
+                total_file_usage
+                + total_subdir_usage
+                + _disk_usage(fs, root, block_size=block_size)
+            )
             if _max_depth_satisfied(root, max_depth):
                 yield (root, usage_map[root])
 
@@ -109,7 +113,6 @@ def _disk_usage(
     """
     block_size = block_size or DEFAULT_BLOCK_SIZE
     size = fs.size(path)  # bytes
-    # TODO: is defaulting to zero size OK when size info is missing?
     size = size if size else 0
     return math.ceil(size / block_size)  # blocks
 
