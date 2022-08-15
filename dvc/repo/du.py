@@ -57,7 +57,7 @@ def du(
         usage_map: Dict[str, int] = {}
         walk = list(fs.walk(fs_path, dvcfiles=True, dvc_only=dvc_only))[::-1]
         for root, dirs, files in walk:
-            # 1. Sum the sizes of all *files* in the current `root` dir
+            # 1. Sum the usage of all *files* in the current `root` dir
             total_file_usage = 0
             file_paths = [join(root, name) for name in files]
             for current_file in file_paths:
@@ -65,22 +65,26 @@ def du(
                     fs, current_file, block_size=block_size
                 )
                 total_file_usage += current_file_usage
+
+                # Yield usage of `current_file` if requested
                 if include_files and _max_depth_satisfied(
                     current_file, max_depth
                 ):
                     yield (current_file, current_file_usage)
 
-            # 2. Sum the sizes of all *subdirs* in the current `root`
+            # 2. Sum the usage of all *subdirs* in the current `root`
             total_subdir_usage = sum(
                 usage_map.get(join(root, d), 0) for d in dirs
             )
 
-            # 3. Determine total size of `root` by summing 1+2+size(root)
+            # 3. Determine total usage of `root` by summing 1+2+size(root)
             usage_map[root] = (
                 total_file_usage
                 + total_subdir_usage
                 + _disk_usage(fs, root, block_size=block_size)
             )
+
+            # Yield usage of `root` if it satisfies the max_depth constraint
             if _max_depth_satisfied(root, max_depth):
                 yield (root, usage_map[root])
 
@@ -91,7 +95,7 @@ def _disk_usage(
     """
     Returns the expected number of blocks used by an object at location `path`.
 
-    This is a helper function used by the `_du` function below.
+    This is a helper function used by the `du` function.
 
     Note:
         The usage reported by this function may differ from the true device
